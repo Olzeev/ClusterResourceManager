@@ -1,0 +1,28 @@
+# playbook.yml
+- name: Configure Pacemaker cluster with master/slave resources
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Ensure cluster is running
+      command: pcs status
+      register: cluster_status
+      changed_when: false
+      failed_when: false
+
+    #- name: Create promotable (master/slave) resource res1
+    #  resource_manager:
+    #    name: res1
+    #    op_type: create
+    #    agent: ocf:pacemaker:Stateful
+    #    type: promotable
+    #  register: res1_created
+    - name: Delete resource
+      resource_manager:
+        name: res1
+        op_type: delete
+      register: result
+
+    - name: show result
+      debug:
+        var: result
