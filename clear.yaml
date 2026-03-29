@@ -1,0 +1,33 @@
+# playbook.yml
+- name: Configure Pacemaker cluster with master/slave resources
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Ensure cluster is running
+      command: pcs status
+      register: cluster_status
+      changed_when: false
+      failed_when: false
+
+    - name: Delete res1
+      resource_manager:
+        name: res1
+        op_type: delete
+      register: result
+
+    - name: show result
+      debug:
+        var: result
+
+    - name: Delete res2
+      resource_manager:
+        name: res2
+        op_type: delete
+      register: result
+
+    - name: show result
+      debug:
+        var: result
+
+    
