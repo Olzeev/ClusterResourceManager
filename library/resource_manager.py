@@ -132,6 +132,8 @@ def run_cmd(module, cmd): # run pcs command
 def add_operations(module):
     operations = module.params['operations']
     cmd = []
+    if operations is None:
+        return []
     for op in operations:
         cmd += [
             'op', 

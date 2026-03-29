@@ -14,27 +14,20 @@
       resource_manager:
         name: res1
         op_type: delete
-        timeout: 10
       register: result
 
     - name: show result
       debug:
         var: result
 
-    - name: Create resource res1
+    - name: Delete res2
       resource_manager:
-        name: res1
-        op_type: create
-        type: primitive
-        operations:
-          - action: monitor
-            interval: 60s
-            timeout: 10s
-            on_fail: stop
-        meta_attrs:
-          target-role: Started
+        name: res2
+        op_type: delete
       register: result
 
     - name: show result
       debug:
         var: result
+
+    
