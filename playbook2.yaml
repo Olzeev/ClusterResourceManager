@@ -1,0 +1,65 @@
+# playbook.yml
+- name: Configure Pacemaker cluster with master/slave resources
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Ensure cluster is running
+      command: pcs status
+      register: cluster_status
+      changed_when: false
+      failed_when: false
+
+    - name: Create promotable resource res1
+      resource_manager:
+        name: res1
+        op_type: create
+        type: promotable
+        #state: disabled
+        meta_attrs:
+          promoted-max: 0
+      register: result
+
+    - name: show result
+      debug:
+        var: result
+  
+    - name: Create resource res2
+      resource_manager:
+        name: res2
+        op_type: create
+        type: primitive
+        state: disabled
+      register: result
+
+    - name: show result
+      debug:
+        var: result
+
+    - name: Add constraint on start
+      constraint_manager:
+        op_type: create
+        actions:
+          - action_name: start
+            res_name: res1-clone
+          - action_name: start
+            res_name: res2
+      register: result
+
+    - name: show result
+      debug:
+        var: result
+
+    - name: Add constraint on promote
+      constraint_manager:
+        op_type: create
+        actions:
+          - action_name: start
+            res_name: res2
+          - action_name: promote
+            res_name: res1-clone
+      register: result
+
+    - name: show result
+      debug:
+        var: result
