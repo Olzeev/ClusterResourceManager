@@ -10,17 +10,29 @@
       changed_when: false
       failed_when: false
 
-    #- name: Create promotable (master/slave) resource res1
-    #  resource_manager:
-    #    name: res1
-    #    op_type: create
-    #    agent: ocf:pacemaker:Stateful
-    #    type: promotable
-    #  register: res1_created
-    - name: Delete resource
+    - name: Delete res1
       resource_manager:
         name: res1
         op_type: delete
+        timeout: 10
+      register: result
+
+    - name: show result
+      debug:
+        var: result
+
+    - name: Create resource res1
+      resource_manager:
+        name: res1
+        op_type: create
+        type: primitive
+        operations:
+          - action: monitor
+            interval: 60s
+            timeout: 10s
+            on_fail: stop
+        meta_attrs:
+          target-role: Started
       register: result
 
     - name: show result

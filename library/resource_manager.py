@@ -18,10 +18,9 @@ options:
     op_type:
         description:
             Create/delete
-        required: false
+        required: true
         type: str
         choices: ['create', 'delete', 'manage']
-        default: 'create'
     operations:
         description: List of operations for the resource.
         type: list
@@ -38,22 +37,18 @@ options:
             timeout:
                 description: Operation timeout (e.g., '20s', '60s').
                 type: str
+                default: '60s'
             on_fail:
                 description: Action on failure.
                 type: str
                 choices: ['ignore', 'block', 'restart', 'fail', 'stop', 'demote']
+                default: 'ignore'
     type:
         description:
             Type of the resource
         required: false
         choices: ["primitive", "promotable"]
         default: "primitive"
-        type: str
-    agent: 
-        description:
-            Provider of the resource
-        required: false
-        default: "ocf:pacemaker:Dummy"
         type: str
     
     meta_attrs:
@@ -73,6 +68,10 @@ options:
         type: str
         choices: ['enabled', 'disabled']
         default: "enabled"
+    timeout:
+        description: Timeout for resource operations in seconds.
+        type: int
+        default: 60
 '''
 
 
@@ -130,25 +129,62 @@ def run_cmd(module, cmd): # run pcs command
         )
     return result
 
+def add_operations(module):
+    operations = module.params['operations']
+    cmd = []
+    for op in operations:
+        cmd += [
+            'op', 
+            op['action'], 
+            f"interval={op['interval']}", 
+            f"timeout={op['timeout']}", 
+            f"on-fail={op['on_fail']}"
+        ]
+    return cmd
+
+def add_meta_attrs(module):
+    cmd = ['meta']
+    meta = module.params['meta_attrs']
+    if meta is None:
+        return []
+    for el in meta.keys():
+        cmd.append(f"{el}={meta[el]}")
+    return cmd
+
+
+def add_instance_attrs(module):
+    cmd = []
+    instance = module.params['instance_attrs']
+    if instance is None:
+        return []
+    for el in instance.keys():
+        cmd.append(f"{el}={instance[el]}")
+    return cmd
+
+
 def create_resource(module):
     res_type = module.params['type']
-    cmd1 = ['pcs', 'resource', 'create', module.params['name'], f'ocf:pacemaker:{'Stateful' if res_type == 'promotable' else 'Dummy'}']
+    timeout = module.params['timeout']
+    cmd1 = ['pcs', 'resource', 'create', module.params['name'], 
+        f'ocf:pacemaker:{'Stateful' if res_type == 'promotable' else 'Dummy'}', 
+        f'--wait={timeout}'] + add_instance_attrs(module) + add_meta_attrs(module) + add_operations(module)
     
     res_state = module.params['state']
     if res_state == 'disabled':
-        cmd.append('--disabled')    
+        cmd1.append('--disabled')    
 
     result = run_cmd(module, cmd1)
     
     if res_type == 'primitive':
         return result
 
-    cmd2 = ['pcs', 'resource', 'promotable', module.params['name']]
+    cmd2 = ['pcs', 'resource', 'promotable', module.params['name'], f'--wait={timeout}']
     result = run_cmd(module, cmd2)
     return result
 
 
 def delete_resource(module):
+    timeout = module.params['timeout']
     cmd = ['pcs', 'resource', 'delete', module.params['name']]
 
     result = run_cmd(module, cmd)
@@ -160,17 +196,18 @@ def main():
         name=dict(type='str', required=True), 
         op_type=dict(type='str', required=False, default='create', choices=['create', 'delete']), 
         type=dict(type='str', required=False, choices=["primitive", "promotable"], default='primitive'), 
-        agent=dict(type='str', required=False, default='ocf:pacemaker:Dummy'), 
+        operations=dict(type='list', elements='dict', required=False),
         meta_attrs=dict(type='dict', required=False), 
         instance_attrs=dict(type='dict', required=False), 
-        state=dict(type='str', choices=['enabled', 'disabled'], default='enabled')
+        state=dict(type='str', choices=['enabled', 'disabled'], default='enabled'),
+        timeout=dict(type='int', default=60)
     )
 
     module = AnsibleModule(
         argument_spec=module_args, 
         supports_check_mode=True, 
         required_if=[
-            ('op_type', 'create', ['type', 'agent'])
+            ('op_type', 'create', ['type'])
         ]
     )
 
