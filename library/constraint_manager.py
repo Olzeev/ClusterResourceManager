@@ -20,22 +20,36 @@ options:
             Identifier of the constraint.
         required: false
         type: str
-    actions:
+    constraint_type:
         description:
-            Actions for each resource
+            Type of the constraint
+        required: true
+        type: str
+        choices: ['order', 'colocation']
+    action_1:
+        description:
+            Action for resource 1
         required: false
-        type: list
-        elements: dict
-        suboptions:
-            action_name:
-                description: name of the action 
-                type: str
-                required: true
-                choices: ['start', 'stop', 'promote', 'demote']
-            res_name:
-                description: name of the resource to execute action 
-                type: str
-                required: true
+        type: str
+        choices: ['start', 'stop', 'promote', 'demote']
+    action_1_resource:
+        desscription:
+            Resource 1 name
+        required: true
+        type: str
+
+    action_2:
+        description:
+            Action for resource 2
+        required: false
+        type: str
+        choices: ['start', 'stop', 'promote', 'demote']
+    action_2_resource:
+        desscription:
+            Resource 2 name
+        required: true
+        type: str
+    
 '''
 
 
@@ -69,48 +83,69 @@ stderr:
 import subprocess
 import time
 from ansible.module_utils.basic import AnsibleModule
-
+import xml.etree.ElementTree as ET
 
 def constraint_exists(module): # check whether resource exists
     cns_name = module.params['name']
-    if cns_name is None:
-        return False
-    cmd = ['pcs', 'constraint', 'config', '--full']
-    
-    res = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if res.returncode != 0:
-        return False
-    
-    return (f"id: {cns_name}" in res.stdout)
+    if cns_name is not None:
+        rc, stdout, stderr = module.run_command(['pcs', 'constraint', 'config', '--full'])
+        return (rc != 0 or cns_name in stdout)
+    rc, stdout, stderr = module.run_command(['pcs', 'cluster', 'cib'])
+    root = ET.fromstring(stdout)
+
+    cns_type = module.params['constraint_type']
+    res1 = module.params["action_1_resource"]
+    res2 = module.params["action_2_resource"]
+    if cns_type == 'order':
+        action1 = module.params['action_1']
+        action2 = module.params['action_2']
+        xpath = f".//rsc_order[@first='{res1}'][@then='{res2}'][@first-action='{action1}'][@then-action='{action2}']"
+    else:
+        action1 = module.params['action_1']
+        if action1 is None:
+            action1 = "Started"
+        action2 = module.params['action_2']
+        if action2 is None:
+            action2 = "Started"
+        xpath = f".//rsc_colocation[@rsc='{module.params["action_1_resource"]}'][@with-rsc='{module.params["action_2_resource"]}'][@rsc-role='{action1}'][@with-rsc-role='{action2}']"
+
+        
+    res = root.find(xpath)
+    return (res is not None)
 
 
 def run_cmd(module, cmd): # run pcs command
-    result = subprocess.run(
-        cmd, 
-        capture_output = True, 
-        text=True, 
-        check=False,
-    )
-    if result.returncode != 0:
+    rc, stdout, stderr = module.run_command(cmd)
+    if rc != 0:
         module.fail_json(
             msg=f"Command '{' '.join(cmd)}' failed!", 
             stdout=result.stdout, 
             stderr=result.stderr
         )
-    return result
+    return (rc, stdout, stderr)
 
 
 def create_constraint(module):
     cns_name = module.params['name']
-    cmd = ['pcs', 'constraint', 'order']
+    cns_type = module.params['constraint_type']
+    action1 = module.params['action_1']
+    action2 = module.params['action_2']
+    res1 = module.params['action_1_resource']
+    res2 = module.params['action_2_resource']
+    cmd = []
+    if cns_type == 'order':
+        cmd = ['pcs', 'constraint', 'order', action1, res1, 'then', action2, res2]
+    elif cns_type == 'colocation':
+        cmd = ['pcs', 'constraint', 'colocation', 'add']
+        if action1 is not None:
+            cmd.append(action1)
+        cmd += [res1, 'then']
+        if action2 is not None:
+            cmd.append(action2)
+        cmd.append(res2)
+
     if cns_name is not None:
         cmd.append(f"id={module.params['name']}")
-    actions = module.params['actions']
-    seq = []
-    for action in actions:
-        seq.append(f"{action['action_name']} {action['res_name']}")
-    seq = " then ".join(seq)
-    cmd += seq.split(' ')
 
     result = run_cmd(module, cmd)
     return result
@@ -126,27 +161,30 @@ def main():
     module_args = dict(
         op_type=dict(type='str', required=True, choices=['create', 'delete']), 
         name=dict(type='str', required=False),  
-        actions=dict(type='list', elements='dict', required=False)
+        constraint_type=dict(type='str', required=True),
+        action_1=dict(type='str', required=False),
+        action_2=dict(type='str', required=False),
+        action_1_resource=dict(type='str', required=True),
+        action_2_resource=dict(type='str', required=False),
     )
 
     module = AnsibleModule(
         argument_spec=module_args, 
         supports_check_mode=True, 
         required_if=[
-            ('op_type', 'create', ['actions']), 
+            ('op_type', 'create', ['action_1_resource', 'action_2_resource']), 
+            ('constraint_type', 'order', ['action_1', 'action_2']),
             ('op_type', 'delete', ['name'])
         ]
     )
     cns_name = module.params['name']
     op_type = module.params['op_type']
-    
     cns_exists = constraint_exists(module)
-
     if op_type == 'create':
         if cns_exists:
             module.exit_json(
                 changed=False, 
-                msg=f"Constraint {cns_name} already exists"
+                msg=f"Constraint already exists"
             )
         result = create_constraint(module)
         module.exit_json(

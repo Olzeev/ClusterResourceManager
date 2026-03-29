@@ -39,11 +39,11 @@
     - name: Add constraint on start
       constraint_manager:
         op_type: create
-        actions:
-          - action_name: start
-            res_name: res1-clone
-          - action_name: start
-            res_name: res2
+        constraint_type: order
+        action_1: start
+        action_1_resource: res1-clone
+        action_2: start
+        action_2_resource: res2
       register: result
 
     - name: show result
@@ -53,13 +53,24 @@
     - name: Add constraint on promote
       constraint_manager:
         op_type: create
-        actions:
-          - action_name: start
-            res_name: res2
-          - action_name: promote
-            res_name: res1-clone
+        constraint_type: order
+        action_1: start
+        action_1_resource: res2
+        action_2: promote
+        action_2_resource: res1-clone
       register: result
 
+    - name: show result
+      debug:
+        var: result
+    - name: Add colocation constraint
+      constraint_manager:
+        op_type: create
+        constraint_type: colocation
+        action_1: Promoted
+        action_1_resource: res1-clone
+        action_2_resource: res2
+      register: result
     - name: show result
       debug:
         var: result
