@@ -20,7 +20,7 @@ options:
             Create/delete
         required: true
         type: str
-        choices: ['create', 'delete', 'manage']
+        choices: ['create', 'delete']
     operations:
         description: List of operations for the resource.
         type: list
@@ -110,24 +110,19 @@ from ansible.module_utils.basic import AnsibleModule
 def resource_exists(module): # check whether resource exists
     cmd = ['pcs', 'resource', 'status', module.params['name']]
     
-    res = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    return (res.returncode == 0)
+    rc, stdout, stderr = module.run_command(cmd)
+    return (rc == 0)
 
 
 def run_cmd(module, cmd): # run pcs command
-    result = subprocess.run(
-        cmd, 
-        capture_output = True, 
-        text=True, 
-        check=False,
-    )
-    if result.returncode != 0:
+    rc, stdout, stderr = module.run_command(cmd)
+    if rc != 0:
         module.fail_json(
             msg=f"Command '{' '.join(cmd)}' failed!", 
-            stdout=result.stdout, 
-            stderr=result.stderr
+            stdout=stdout, 
+            stderr=stderr
         )
-    return result
+    return (rc, stdout, stderr)
 
 def add_operations(module):
     operations = module.params['operations']
@@ -228,7 +223,7 @@ def main():
         module.exit_json(
             changed=True, 
             msg=f"Resource {res_name} created successfully", 
-            stdout=result.stdout
+            stdout=result[1]
         )
     elif op_type == 'delete':
         if not res_exists:
@@ -240,22 +235,8 @@ def main():
         module.exit_json(
             changed=True, 
             msg=f"Resource {res_name} was deleted successfully",
-            stdout=result.stdout
+            stdout=result[1]
         )
-    '''
-    elif op_type == 'manage':
-        if not res_exists:
-            module.exit_json(
-                changed=False,
-                msg=f"Resource {res_name} doesn't exist"
-            )
-        result = manage_resource(module)
-        module.exit_json(
-            changed=True, 
-            msg=f"Operations for resource {res_name} executed successfully"
-            stdout=result.stdout
-        )
-    '''
 
 if __name__ == '__main__':
     main()

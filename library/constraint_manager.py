@@ -102,11 +102,16 @@ def constraint_exists(module): # check whether resource exists
         xpath = f".//rsc_order[@first='{res1}'][@then='{res2}'][@first-action='{action1}'][@then-action='{action2}']"
     else:
         action1 = module.params['action_1']
+
         if action1 is None:
             action1 = "Started"
+        else:
+            action1 = action1.capitalize()
         action2 = module.params['action_2']
         if action2 is None:
             action2 = "Started"
+        else:
+            action2 = action2.capitalize()
         xpath = f".//rsc_colocation[@rsc='{module.params["action_1_resource"]}'][@with-rsc='{module.params["action_2_resource"]}'][@rsc-role='{action1}'][@with-rsc-role='{action2}']"
 
         
@@ -119,8 +124,8 @@ def run_cmd(module, cmd): # run pcs command
     if rc != 0:
         module.fail_json(
             msg=f"Command '{' '.join(cmd)}' failed!", 
-            stdout=result.stdout, 
-            stderr=result.stderr
+            stdout=stdout, 
+            stderr=stderr
         )
     return (rc, stdout, stderr)
 
@@ -139,7 +144,7 @@ def create_constraint(module):
         cmd = ['pcs', 'constraint', 'colocation', 'add']
         if action1 is not None:
             cmd.append(action1)
-        cmd += [res1, 'then']
+        cmd += [res1, 'with']
         if action2 is not None:
             cmd.append(action2)
         cmd.append(res2)
@@ -189,8 +194,8 @@ def main():
         result = create_constraint(module)
         module.exit_json(
             changed=True, 
-            msg=f"Constraint {cns_name} created successfully", 
-            stdout=result.stdout
+            msg=f"Constraint created successfully", 
+            stdout=result[1]
         )
     elif op_type == 'delete':
         if not cns_exists:
@@ -202,7 +207,7 @@ def main():
         module.exit_json(
             changed=True, 
             msg=f"Constraint {cns_name} was deleted successfully",
-            stdout=result.stdout
+            stdout=result[1]
         )
 
 if __name__ == '__main__':
