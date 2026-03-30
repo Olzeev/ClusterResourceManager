@@ -18,7 +18,7 @@
 
     - name: show result
       debug:
-        var: result
+        var: result.msg
 
     - name: Delete res2
       resource_manager:
@@ -28,6 +28,6 @@
 
     - name: show result
       debug:
-        var: result
+        var: result.msg
 
     

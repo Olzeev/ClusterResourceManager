@@ -20,14 +20,14 @@ options:
             Create/delete
         required: true
         type: str
-        choices: ['create', 'delete']
+        choices: ['create', 'delete', 'enable', 'disable']
     operations:
         description: List of operations for the resource.
         type: list
         elements: dict
         suboptions:
             action:
-                description: Operation name (start, stop, monitor, promote, demote).
+                description: Operation name (start, stop, monitor, promote, unpromote).
                 type: str
                 required: true
             interval:
@@ -58,7 +58,7 @@ options:
         type: dict
     instance_attrs:
         description:
-            Instance attributed of the resource
+            Instance attributes of the resource
         required: false
         type: dict
     state:
@@ -68,10 +68,6 @@ options:
         type: str
         choices: ['enabled', 'disabled']
         default: "enabled"
-    timeout:
-        description: Timeout for resource operations in seconds.
-        type: int
-        default: 60
 '''
 
 
@@ -79,8 +75,17 @@ EXAMPLES = r'''
 - name: Create a primitive dummy resource
   resource_manager:
     name: test_res
-    agent: ocf:heartbeat:Dummy
-    state: present
+    op_type: create
+    type: primitive
+    state: enabled
+- name: Delete a resource
+    resource_manager:
+        name: test_res
+        op_type: delete
+- name: Enable resource
+    resource_manager:
+        name: test_res
+        op_type: enable
 '''
 
 RETURN = r'''
@@ -161,10 +166,9 @@ def add_instance_attrs(module):
 
 def create_resource(module):
     res_type = module.params['type']
-    timeout = module.params['timeout']
     cmd1 = ['pcs', 'resource', 'create', module.params['name'], 
-        f'ocf:pacemaker:{'Stateful' if res_type == 'promotable' else 'Dummy'}', 
-        f'--wait={timeout}'] + add_instance_attrs(module) + add_meta_attrs(module) + add_operations(module)
+        f'ocf:pacemaker:{'Stateful' if res_type == 'promotable' else 'Dummy'}'] \
+        + add_instance_attrs(module) + add_meta_attrs(module) + add_operations(module)
     
     res_state = module.params['state']
     if res_state == 'disabled':
@@ -175,13 +179,12 @@ def create_resource(module):
     if res_type == 'primitive':
         return result
 
-    cmd2 = ['pcs', 'resource', 'promotable', module.params['name'], f'--wait={timeout}']
+    cmd2 = ['pcs', 'resource', 'promotable', module.params['name']]
     result = run_cmd(module, cmd2)
     return result
 
 
 def delete_resource(module):
-    timeout = module.params['timeout']
     cmd = ['pcs', 'resource', 'delete', module.params['name']]
 
     result = run_cmd(module, cmd)
@@ -191,13 +194,18 @@ def delete_resource(module):
 def main():
     module_args = dict(
         name=dict(type='str', required=True), 
-        op_type=dict(type='str', required=False, default='create', choices=['create', 'delete']), 
+        op_type=dict(type='str', required=False, default='create', choices=['create', 'delete', 'enable', 'disable']), 
         type=dict(type='str', required=False, choices=["primitive", "promotable"], default='primitive'), 
-        operations=dict(type='list', elements='dict', required=False),
+        operations=dict(type='list', elements='dict', required=False, 
+            options=dict(
+                action=dict(type='str', requires=True), 
+                interval=dict(type='str', default='0s'), 
+                timeout=dict(type='str', default='60s'), 
+                on_fail=dict(type='str', choices=['ignore', 'block', 'restart', 'fail', 'stop', 'demote'], default='ignore')
+            )),
         meta_attrs=dict(type='dict', required=False), 
         instance_attrs=dict(type='dict', required=False), 
         state=dict(type='str', choices=['enabled', 'disabled'], default='enabled'),
-        timeout=dict(type='int', default=60)
     )
 
     module = AnsibleModule(
@@ -235,6 +243,30 @@ def main():
         module.exit_json(
             changed=True, 
             msg=f"Resource {res_name} was deleted successfully",
+            stdout=result[1]
+        )
+    elif op_type == 'enable':
+        if not res_exists:
+            module.exit_json(
+                changed=False, 
+                msg=f"Resource {res_name} doesn't exist"
+            )
+        result = run_cmd(module, ['pcs', 'resource', 'enable', res_name])
+        module.exit_json(
+            changed=True, 
+            msg=f"Resource {res_name} enabled successfully", 
+            stdout=result[1]
+        )
+    elif op_type == 'disable':
+        if not res_exists:
+            module.exit_json(
+                changed=False, 
+                msg=f"Resource {res_name} doesn't exist"
+            )
+        result = run_cmd(module, ['pcs', 'resource', 'disable', res_name])
+        module.exit_json(
+            changed=True, 
+            msg=f"Resource {res_name} disabled successfully", 
             stdout=result[1]
         )
 

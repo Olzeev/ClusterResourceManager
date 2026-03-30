@@ -31,7 +31,7 @@ options:
             Action for resource 1
         required: false
         type: str
-        choices: ['start', 'stop', 'promote', 'demote']
+        choices: ['start', 'stop', 'promote', 'demote', 'promoted', 'unpromoted']
     action_1_resource:
         desscription:
             Resource 1 name
@@ -43,7 +43,7 @@ options:
             Action for resource 2
         required: false
         type: str
-        choices: ['start', 'stop', 'promote', 'demote']
+        choices: ['start', 'stop', 'promote', 'demote', 'promoted', 'unpromoted']
     action_2_resource:
         desscription:
             Resource 2 name
@@ -54,11 +54,14 @@ options:
 
 
 EXAMPLES = r'''
-- name: Create a primitive dummy resource
-  resource_manager:
-    name: test_res
-    agent: ocf:heartbeat:Dummy
-    state: present
+- name: Create an order constraint
+    constraint_manager:
+        op_type: create
+        constraint_type: order
+        action_1: start
+        action_1_resource: res1
+        action_2: start
+        action_2_resource: res2
 '''
 
 RETURN = r'''
@@ -85,7 +88,15 @@ import time
 from ansible.module_utils.basic import AnsibleModule
 import xml.etree.ElementTree as ET
 
-def constraint_exists(module): # check whether resource exists
+
+def resource_exists(module, name): # check whether resource exists
+    cmd = ['pcs', 'resource', 'status', name]
+    
+    rc, stdout, stderr = module.run_command(cmd)
+    return (rc == 0)
+
+
+def constraint_exists(module): # check whether constraint exists
     cns_name = module.params['name']
     if cns_name is not None:
         rc, stdout, stderr = module.run_command(['pcs', 'constraint', 'config', '--full'])
@@ -185,16 +196,30 @@ def main():
     cns_name = module.params['name']
     op_type = module.params['op_type']
     cns_exists = constraint_exists(module)
+    res1 = module.params['action_1_resource']
+    res2 = module.params['action_2_resource']
+    res1_exists = resource_exists(module, res1)
+    res2_exists = resource_exists(module, res2)
     if op_type == 'create':
         if cns_exists:
             module.exit_json(
                 changed=False, 
                 msg=f"Constraint already exists"
             )
+        if not res1_exists:
+            module.exit_json(
+                changed=False, 
+                msg=f"Resource {res1} doesn't exist"
+            )
+        if not res2_exists:
+            module.exit_json(
+                changed=False, 
+                msg=f"Resource {res2} doesn't exist"
+            )
         result = create_constraint(module)
         module.exit_json(
             changed=True, 
-            msg=f"Constraint created successfully", 
+            msg=f"Constraint for {res1} and {res2} created successfully", 
             stdout=result[1]
         )
     elif op_type == 'delete':

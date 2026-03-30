@@ -8,7 +8,6 @@
       command: pcs status
       register: cluster_status
       changed_when: false
-      failed_when: false
 
     - name: Create promotable resource res1
       resource_manager:
@@ -19,19 +18,18 @@
 
     - name: show result
       debug:
-        var: result
-  
+        var: result.msg
+
     - name: Create resource res2
       resource_manager:
         name: res2
         op_type: create
         type: primitive
-        state: disabled
       register: result
 
     - name: show result
       debug:
-        var: result
+        var: result.msg
 
     - name: Add constraint on start
       constraint_manager:
@@ -45,7 +43,7 @@
 
     - name: show result
       debug:
-        var: result
+        var: result.msg
 
     - name: Add constraint on promote
       constraint_manager:
@@ -59,7 +57,8 @@
 
     - name: show result
       debug:
-        var: result
+        var: result.msg
+
     - name: Add colocation constraint
       constraint_manager:
         op_type: create
@@ -68,6 +67,7 @@
         action_1_resource: res1-clone
         action_2_resource: res2
       register: result
+
     - name: show result
       debug:
-        var: result
+        var: result.msg
