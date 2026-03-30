@@ -150,8 +150,18 @@ def create_constraint(module):
     res2 = module.params['action_2_resource']
     cmd = []
     if cns_type == 'order':
+        if module.check_mode:
+            module.exit_json(
+                changed=True, 
+                msg=f"Would create order constraint (check mode)"
+            )
         cmd = ['pcs', 'constraint', 'order', action1, res1, 'then', action2, res2]
     elif cns_type == 'colocation':
+        if module.check_mode:
+            module.exit_json(
+                changed=True, 
+                msg=f"Would create colocation constraint (check mode)"
+            )
         cmd = ['pcs', 'constraint', 'colocation', 'add']
         if action1 is not None:
             cmd.append(action1)
@@ -162,11 +172,16 @@ def create_constraint(module):
 
     if cns_name is not None:
         cmd.append(f"id={module.params['name']}")
-
+    
     result = run_cmd(module, cmd)
     return result
 
 def delete_constraint(module):
+    if module.check_mode:
+        module.exit_json(
+            changed=True, 
+            msg=f"Would delete {module.params['name']} constraint (check mode)"
+        )
     cmd = ['pcs', 'constraint', 'delete', module.params['name']]
 
     result = run_cmd(module, cmd)

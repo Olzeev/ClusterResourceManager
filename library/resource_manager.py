@@ -165,6 +165,11 @@ def add_instance_attrs(module):
 
 
 def create_resource(module):
+    if module.check_mode:
+        module.exit_json(
+            changed=True, 
+            msg=f"Would create {module.params['state']} {module.params['type']} resource {module.params['name']} (check_mode)"
+        )
     res_type = module.params['type']
     cmd1 = ['pcs', 'resource', 'create', module.params['name'], 
         f'ocf:pacemaker:{'Stateful' if res_type == 'promotable' else 'Dummy'}'] \
@@ -185,6 +190,11 @@ def create_resource(module):
 
 
 def delete_resource(module):
+    if module.check_mode:
+        module.exit_json(
+            changed=True, 
+            msg=f"Would delete resource {module.params['name']} (check mode)"
+        )
     cmd = ['pcs', 'resource', 'delete', module.params['name']]
 
     result = run_cmd(module, cmd)
@@ -251,6 +261,11 @@ def main():
                 changed=False, 
                 msg=f"Resource {res_name} doesn't exist"
             )
+        if module.check_mode:
+            module.exit_json(
+                changed=True, 
+                msg=f"Would enable resource {res_name} (check mode)"
+            )
         result = run_cmd(module, ['pcs', 'resource', 'enable', res_name])
         module.exit_json(
             changed=True, 
@@ -262,6 +277,11 @@ def main():
             module.exit_json(
                 changed=False, 
                 msg=f"Resource {res_name} doesn't exist"
+            )
+        if module.check_mode:
+            module.exit_json(
+                changed=True, 
+                msg=f"Would disable resource {res_name} (check mode)"
             )
         result = run_cmd(module, ['pcs', 'resource', 'disable', res_name])
         module.exit_json(
