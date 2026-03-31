@@ -43,7 +43,11 @@ options:
                 type: str
                 choices: ['ignore', 'block', 'restart', 'fail', 'stop', 'demote']
                 default: 'ignore'
-    
+    type:
+        description:
+            type of the resource
+        required: false
+        choices: ['primitive', 'promotable', 'bundle']
     agent:
         description:
             Agent of the resource
@@ -169,8 +173,24 @@ def create_resource(module):
             changed=True, 
             msg=f"Would create {module.params['state']} {module.params['type']} resource {module.params['name']} (check_mode)"
         )
+    if module.params['type'] == 'bundle':
+        if module.params['instance_attrs'] is None or 'image' not in module.params['instance_attrs'].keys():
+            module.fail_json(
+                changed=False, 
+                msg=f"No image provided"
+            )
+        cmd = ['pcs', 'resource', 'bundle', 'create', module.params['name'], 'container', 'podman'] \
+            + add_instance_attrs(module) + add_meta_attrs(module) + add_operations(module)
+        result = run_cmd(module, cmd)
+        return result
+
+
     agent = module.params['agent']
-    
+    if module.params['type'] == 'promotable' and agent.split(':')[-1] != 'Stateful':
+        module.fail_json(
+            changed=False, 
+            msg=f"Promotable but not stateful"
+        )
     cmd1 = ['pcs', 'resource', 'create', module.params['name'], agent] \
         + add_instance_attrs(module) + add_meta_attrs(module) + add_operations(module)
     
@@ -180,7 +200,7 @@ def create_resource(module):
 
     result = run_cmd(module, cmd1)
     
-    if agent.split(':')[-1] == 'Stateful':
+    if module.params['type'] == 'promotable':
         cmd2 = ['pcs', 'resource', 'promotable', module.params['name']]
         result = run_cmd(module, cmd2)
     return result
@@ -202,6 +222,7 @@ def main():
     module_args = dict(
         name=dict(type='str', required=True), 
         op_type=dict(type='str', required=False, default='create', choices=['create', 'delete', 'enable', 'disable']), 
+        type=dict(type='str', required=False, choices=['primitive', 'promotable', 'bundle']),
         agent=dict(type='str', required=False),
         operations=dict(type='list', elements='dict', required=False, 
             options=dict(
@@ -219,7 +240,9 @@ def main():
         argument_spec=module_args, 
         supports_check_mode=True, 
         required_if=[
-            ('op_type', 'create', ['agent'])
+            ('op_type', 'create', ['type']), 
+            ('type', 'primitive', ['agent']), 
+            ('type', 'promotable', ['agent'])
         ]
     )
 

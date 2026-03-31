@@ -4,11 +4,25 @@
   connection: local
 
   tasks:
-    - name: Ensure cluster is running
-      command: pcs status
-      register: cluster_status
-      changed_when: false
-      failed_when: false
+    - name: Delete ipaddr
+      resource_manager:
+        name: ipaddr
+        op_type: delete
+      register: result
+
+    - name: show result
+      debug:
+        var: result.msg
+
+    - name: Delete bundle
+      resource_manager:
+        name: bundle1
+        op_type: delete
+      register: result
+
+    - name: show result
+      debug:
+        var: result.msg
 
     - name: Delete res1
       resource_manager:
@@ -29,5 +43,6 @@
     - name: show result
       debug:
         var: result.msg
+
 
     

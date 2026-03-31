@@ -1,0 +1,36 @@
+# playbook.yml
+- name: Configure Pacemaker cluster with master/slave resources
+  hosts: localhost
+  connection: local
+
+  tasks:
+
+    - name: Create ip address resource
+      resource_manager:
+        name: ipaddr
+        type: primitive
+        op_type: create
+        agent: "ocf:heartbeat:IPaddr2"
+        instance_attrs:
+          ip: 127.0.0.1
+          cidr_netmask: 24
+          broadcast: 192.168.1.255
+      register: result
+
+    - name: show result
+      debug:
+        var: result.msg
+
+    - name: create bundle
+      resource_manager:
+        name: bundle1
+        type: bundle
+        op_type: create
+        instance_attrs:
+          image: "docker.io/library/nginx:latest"
+      register: result
+
+    - name: show result
+      debug:
+        var: result.msg
+      

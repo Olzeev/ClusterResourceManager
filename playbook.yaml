@@ -13,6 +13,7 @@
       resource_manager:
         name: res1
         op_type: create
+        type: promotable
         agent: "ocf:pacemaker:Stateful"
       register: result
 
@@ -24,6 +25,7 @@
       resource_manager:
         name: res2
         op_type: create
+        type: primitive
         agent: ocf:pacemaker:Dummy
       register: result
 
