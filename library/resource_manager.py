@@ -43,14 +43,13 @@ options:
                 type: str
                 choices: ['ignore', 'block', 'restart', 'fail', 'stop', 'demote']
                 default: 'ignore'
-    type:
-        description:
-            Type of the resource
-        required: false
-        choices: ["primitive", "promotable"]
-        default: "primitive"
-        type: str
     
+    agent:
+        description:
+            Agent of the resource
+        required: false
+        type: str
+
     meta_attrs:
         description:
             Meta attributes of the resource
@@ -170,9 +169,9 @@ def create_resource(module):
             changed=True, 
             msg=f"Would create {module.params['state']} {module.params['type']} resource {module.params['name']} (check_mode)"
         )
-    res_type = module.params['type']
-    cmd1 = ['pcs', 'resource', 'create', module.params['name'], 
-        f'ocf:pacemaker:{'Stateful' if res_type == 'promotable' else 'Dummy'}'] \
+    agent = module.params['agent']
+    
+    cmd1 = ['pcs', 'resource', 'create', module.params['name'], agent] \
         + add_instance_attrs(module) + add_meta_attrs(module) + add_operations(module)
     
     res_state = module.params['state']
@@ -181,11 +180,9 @@ def create_resource(module):
 
     result = run_cmd(module, cmd1)
     
-    if res_type == 'primitive':
-        return result
-
-    cmd2 = ['pcs', 'resource', 'promotable', module.params['name']]
-    result = run_cmd(module, cmd2)
+    if agent.split(':')[-1] == 'Stateful':
+        cmd2 = ['pcs', 'resource', 'promotable', module.params['name']]
+        result = run_cmd(module, cmd2)
     return result
 
 
@@ -205,7 +202,7 @@ def main():
     module_args = dict(
         name=dict(type='str', required=True), 
         op_type=dict(type='str', required=False, default='create', choices=['create', 'delete', 'enable', 'disable']), 
-        type=dict(type='str', required=False, choices=["primitive", "promotable"], default='primitive'), 
+        agent=dict(type='str', required=False),
         operations=dict(type='list', elements='dict', required=False, 
             options=dict(
                 action=dict(type='str', requires=True), 
@@ -222,7 +219,7 @@ def main():
         argument_spec=module_args, 
         supports_check_mode=True, 
         required_if=[
-            ('op_type', 'create', ['type'])
+            ('op_type', 'create', ['agent'])
         ]
     )
 
